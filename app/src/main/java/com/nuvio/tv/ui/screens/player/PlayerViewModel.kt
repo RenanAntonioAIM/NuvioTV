@@ -292,6 +292,8 @@ class PlayerViewModel @Inject constructor(
         controller.startInitialPlaybackIfNeeded()
     }
 
+    fun translateEmbeddedEnglishSubtitle(): Boolean = controller.translateEmbeddedEnglishSubtitle()
+
     fun onEvent(event: PlayerEvent) {
         controller.onEvent(event)
     }
