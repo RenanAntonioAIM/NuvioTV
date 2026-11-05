@@ -47,7 +47,6 @@ import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
@@ -1173,7 +1172,7 @@ private fun IntegrationSettingsContent(
                                 SettingsActionRow(
                                     title = "Tradução de legendas por IA",
                                     subtitle = "Nan Add-ons · Português do Brasil",
-                                    leadingIcon = Icons.Default.AutoAwesome,
+                                    leadingIcon = Icons.Default.Link,
                                     onClick = { onSelectSection(IntegrationSettingsSection.AiSubtitles) },
                                     modifier = if (hubEntryTargetSection == IntegrationSettingsSection.AiSubtitles) Modifier.focusRequester(hubEntryFocusRequester) else Modifier
                                 )
