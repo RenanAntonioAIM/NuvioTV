@@ -10,6 +10,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
@@ -107,6 +108,7 @@ class EmbeddedSubtitleTranslationClient(
                 }
             })
         }
+    }
 
     private data class RequestPayload(
         val cues: List<Cue>,
