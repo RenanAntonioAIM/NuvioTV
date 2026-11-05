@@ -80,7 +80,10 @@ private fun PlayerRuntimeController.shouldKeepAssOnLibassMediaPath(): Boolean {
 }
 
 internal fun PlayerRuntimeController.isSidecarAddonSubtitleActive(): Boolean {
-    return activeSidecarSubtitleKey != null && _uiState.value.selectedAddonSubtitle != null
+    return activeSidecarSubtitleKey != null && (
+        _uiState.value.selectedAddonSubtitle != null ||
+            activeSidecarSubtitleKey?.startsWith("ai-embedded:") == true
+        )
 }
 
 internal fun PlayerRuntimeController.bindExoSubtitleView(subtitleView: SubtitleView?) {
@@ -287,7 +290,7 @@ private fun PlayerRuntimeController.showSidecarCues(view: SubtitleView, cues: Li
     subtitleCueTracker.update(cues)
 }
 
-private fun PlayerRuntimeController.postToSubtitleView(block: (SubtitleView) -> Unit) {
+internal fun PlayerRuntimeController.postToSubtitleView(block: (SubtitleView) -> Unit) {
     val view = exoSubtitleViewRef?.get() ?: return
     if (Looper.myLooper() == Looper.getMainLooper()) {
         block(view)

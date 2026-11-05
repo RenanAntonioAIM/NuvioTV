@@ -104,6 +104,7 @@ internal fun SubtitleSelectionOverlay(
     onInternalTrackSelected: (Int) -> Unit,
     onAddonSubtitleSelected: (Subtitle) -> Unit,
     onDisableSubtitles: () -> Unit,
+    onTranslateEmbeddedSubtitle: () -> Unit = {},
     onEvent: (PlayerEvent) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
@@ -476,6 +477,10 @@ internal fun SubtitleSelectionOverlay(
                 color = Color.White,
                 modifier = Modifier.padding(bottom = NuvioTheme.spacing.md)
             )
+
+            androidx.tv.material3.Card(onClick = onTranslateEmbeddedSubtitle, modifier = Modifier.padding(bottom = 12.dp)) {
+                Text(text = "✨ Traduzir legenda incorporada para português", color = Color.White, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+            }
 
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 SubtitleLanguageRail(

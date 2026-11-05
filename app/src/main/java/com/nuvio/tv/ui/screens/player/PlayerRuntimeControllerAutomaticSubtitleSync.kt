@@ -7,6 +7,11 @@ import android.util.Log
 import android.widget.Toast
 import androidx.media3.common.C
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.text.Cue
+import androidx.media3.extractor.text.CuesWithTiming
+import com.nuvio.tv.core.subtitles.EmbeddedSubtitleTranslationClient
+import com.nuvio.tv.core.subtitles.EmbeddedSubtitleTranslationSettings
+import com.nuvio.tv.ui.screens.player.autosync.EmbeddedSubtitleCueStore
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.extractor.ExtractorsFactory
 import com.nuvio.tv.R
@@ -30,6 +35,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 
@@ -54,9 +60,12 @@ internal fun PlayerRuntimeController.autoSyncExtractorsFactory(
     headers: Map<String, String>,
 ): ExtractorsFactory {
     AutoSyncPreferences.ensureLoaded(context)
-    if (!AutoSyncPreferences.isEnabled(context)) return delegate
+    // Embedded cue capture also powers the independent AI translation action. Keep the
+    // lightweight text observer active even when automatic subtitle synchronization is off.
     val factory = AutoSyncExtractorsFactory(delegate = delegate, sourceKey = url)
-    prefetchAutoSyncIndex(url, headers)
+    if (AutoSyncPreferences.isEnabled(context)) {
+        prefetchAutoSyncIndex(url, headers)
+    }
     return factory
 }
 
@@ -668,3 +677,101 @@ private fun Context.buildAutoSyncFailureToast(analysisOutcome: AutoSyncAnalysisO
         null,
         -> null
     }
+
+
+/** Translate captured embedded English text and render it as a sidecar without reloading video. */
+internal fun PlayerRuntimeController.translateEmbeddedEnglishSubtitle(): Boolean {
+    if (isUsingMpvEngine()) {
+        showAutoSyncToast("A tradução de legenda incorporada exige o mecanismo ExoPlayer.")
+        return false
+    }
+    val player = _exoPlayer ?: return false
+    if (_uiState.value.selectedAddonSubtitle != null) {
+        showAutoSyncToast("Selecione primeiro uma legenda incorporada ao vídeo.")
+        return false
+    }
+    val sourceAtStart = currentStreamUrl
+    val settings = EmbeddedSubtitleTranslationSettings(context).read()
+    if (!settings.isConfigured) {
+        showAutoSyncToast("Configure o token em Configurações > Integrações.")
+        return false
+    }
+    val selected = EmbeddedSubtitleCueStore.candidateTracks(sourceAtStart, "en")
+        .filter { track ->
+            val language = track.language?.trim().orEmpty()
+            language.equals("eng", ignoreCase = true) || language.startsWith("en", ignoreCase = true)
+        }
+        .maxByOrNull { it.cues.size }
+    if (selected == null || selected.cues.size < MIN_TRANSLATION_CUES) {
+        showAutoSyncToast("Ainda não há falas suficientes capturadas. Reproduza mais um pouco e tente novamente.")
+        return false
+    }
+
+    sidecarSubtitleJob?.cancel()
+    val generation = ++sidecarGenerationCounter
+    val translatedKey = "ai-embedded:$sourceAtStart"
+    activeSidecarGeneration = generation
+    activeSidecarSubtitleKey = translatedKey
+    postToSubtitleView { view ->
+        view.setTag(R.id.player_view_sidecar_generation_tag, translatedKey)
+        view.setCues(emptyList())
+    }
+    sidecarTimedCues = emptyList()
+    lastSidecarCueSignature = null
+    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
+
+    sidecarSubtitleJob = scope.launch {
+        try {
+            showAutoSyncToast("Traduzindo ${selected.cues.size} falas para português…")
+            val client = EmbeddedSubtitleTranslationClient()
+            val translated = selected.cues.filter { it.text.isNotBlank() }
+                .chunked(TRANSLATION_BATCH_SIZE)
+                .flatMap { batch ->
+                    client.translate(
+                        endpoint = settings.endpoint,
+                        token = settings.token,
+                        cues = batch.map { cue ->
+                            EmbeddedSubtitleTranslationClient.Cue(cue.startTimeMs, cue.endTimeMs, cue.text)
+                        },
+                    ).cues
+                }
+            if (currentStreamUrl != sourceAtStart ||
+                activeSidecarGeneration != generation ||
+                activeSidecarSubtitleKey != translatedKey
+            ) return@launch
+
+            val timed = translated.map { cue ->
+                CuesWithTiming(
+                    listOf(Cue.Builder().setText(cue.text).build()),
+                    cue.startTimeMs * 1_000L,
+                    (cue.endTimeMs - cue.startTimeMs).coerceAtLeast(1L) * 1_000L,
+                )
+            }
+            if (timed.isEmpty()) throw IllegalStateException("Nenhuma fala foi traduzida.")
+            sidecarTimedCues = timed
+            showAutoSyncToast("Legenda em português pronta (${timed.size} falas).")
+            while (kotlinx.coroutines.currentCoroutineContext().isActive &&
+                currentStreamUrl == sourceAtStart &&
+                activeSidecarGeneration == generation &&
+                activeSidecarSubtitleKey == translatedKey
+            ) {
+                renderSidecarCuesAtCurrentPosition()
+                kotlinx.coroutines.delay(80L)
+            }
+        } catch (cancel: CancellationException) {
+            throw cancel
+        } catch (error: Exception) {
+            if (activeSidecarGeneration == generation) {
+                stopSidecarAddonSubtitle(clearView = true)
+                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).build()
+            }
+            showAutoSyncToast(error.message ?: "Não foi possível traduzir a legenda.")
+        }
+    }
+    return true
+}
+
+private const val MIN_TRANSLATION_CUES = 8
+private const val TRANSLATION_BATCH_SIZE = 1_500

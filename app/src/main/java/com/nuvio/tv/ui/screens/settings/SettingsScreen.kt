@@ -47,6 +47,12 @@ import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import com.nuvio.tv.core.subtitles.EmbeddedSubtitleTranslationSettings
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
@@ -108,7 +114,8 @@ private enum class IntegrationSettingsSection {
     Debrid,
     Tmdb,
     MdbList,
-    AnimeSkip
+    AnimeSkip,
+    AiSubtitles
 }
 
 internal enum class SettingsSectionDestination {
@@ -246,6 +253,7 @@ fun SettingsScreen(
     val integrationTmdbFocusRequester = remember { FocusRequester() }
     val integrationMdbListFocusRequester = remember { FocusRequester() }
     val integrationAnimeSkipFocusRequester = remember { FocusRequester() }
+    val integrationAiSubtitlesFocusRequester = remember { FocusRequester() }
     var integrationSection by remember { mutableStateOf(IntegrationSettingsSection.Hub) }
     var integrationHubReturnSection by remember { mutableStateOf(IntegrationSettingsSection.Hub) }
     var pendingContentFocusCategory by remember { mutableStateOf<SettingsCategory?>(null) }
@@ -655,6 +663,7 @@ fun SettingsScreen(
                                 integrationTmdbFocusRequester = integrationTmdbFocusRequester,
                                 integrationMdbListFocusRequester = integrationMdbListFocusRequester,
                                 integrationAnimeSkipFocusRequester = integrationAnimeSkipFocusRequester,
+                        integrationAiSubtitlesFocusRequester = integrationAiSubtitlesFocusRequester,
                                 onNavigateToManageProfiles = onNavigateToManageProfiles,
                                 onNavigateToAddons = onNavigateToAddons,
                                 onNavigateToPlugins = onNavigateToPlugins,
@@ -845,6 +854,7 @@ private fun SettingsDetailPane(
     integrationTmdbFocusRequester: FocusRequester,
     integrationMdbListFocusRequester: FocusRequester,
     integrationAnimeSkipFocusRequester: FocusRequester,
+    integrationAiSubtitlesFocusRequester: FocusRequester,
     onNavigateToManageProfiles: () -> Unit,
     onNavigateToAddons: () -> Unit,
     onNavigateToPlugins: () -> Unit,
@@ -943,6 +953,7 @@ private fun SettingsDetailPane(
             tmdbFocusRequester = integrationTmdbFocusRequester,
             mdbListFocusRequester = integrationMdbListFocusRequester,
             animeSkipFocusRequester = integrationAnimeSkipFocusRequester,
+            aiSubtitlesFocusRequester = integrationAiSubtitlesFocusRequester,
             autoFocusEnabled = allowDetailAutofocus
         )
         SettingsCategory.ABOUT -> AboutSettingsContent(
@@ -1064,6 +1075,7 @@ private fun IntegrationSettingsContent(
     tmdbFocusRequester: FocusRequester,
     mdbListFocusRequester: FocusRequester,
     animeSkipFocusRequester: FocusRequester,
+    aiSubtitlesFocusRequester: FocusRequester,
     autoFocusEnabled: Boolean
 ) {
     BackHandler(enabled = selectedSection != IntegrationSettingsSection.Hub) {
@@ -1076,6 +1088,7 @@ private fun IntegrationSettingsContent(
         IntegrationSettingsSection.Tmdb -> tmdbFocusRequester
         IntegrationSettingsSection.MdbList -> mdbListFocusRequester
         IntegrationSettingsSection.AnimeSkip -> animeSkipFocusRequester
+        IntegrationSettingsSection.AiSubtitles -> aiSubtitlesFocusRequester
     }
     val hubEntryTargetSection = hubReturnSection.takeIf {
         it != IntegrationSettingsSection.Hub
@@ -1089,6 +1102,7 @@ private fun IntegrationSettingsContent(
             IntegrationSettingsSection.Tmdb -> tmdbFocusRequester
             IntegrationSettingsSection.MdbList -> mdbListFocusRequester
             IntegrationSettingsSection.AnimeSkip -> animeSkipFocusRequester
+            IntegrationSettingsSection.AiSubtitles -> aiSubtitlesFocusRequester
         }
         runCatching { requester.requestFocus() }
     }
@@ -1154,6 +1168,15 @@ private fun IntegrationSettingsContent(
                                     }
                                 )
                             }
+                            item(key = "integration_hub_ai_subtitles") {
+                                SettingsActionRow(
+                                    title = "Tradução de legendas por IA",
+                                    subtitle = "Nan Add-ons · Português do Brasil",
+                                    leadingIcon = Icons.Default.Link,
+                                    onClick = { onSelectSection(IntegrationSettingsSection.AiSubtitles) },
+                                    modifier = if (hubEntryTargetSection == IntegrationSettingsSection.AiSubtitles) Modifier.focusRequester(hubEntryFocusRequester) else Modifier
+                                )
+                            }
                             item(key = "integration_hub_animeskip") {
                                 SettingsActionRow(
                                     title = "Anime-Skip",
@@ -1197,6 +1220,9 @@ private fun IntegrationSettingsContent(
                 initialFocusRequester = animeSkipFocusRequester
             )
         }
+        IntegrationSettingsSection.AiSubtitles -> AiSubtitleTranslationSettingsContent(
+            initialFocusRequester = aiSubtitlesFocusRequester
+        )
     }
 }
 
@@ -1214,3 +1240,52 @@ private fun Key.isDirection(): Boolean =
         this == Key.DirectionDown ||
         this == Key.DirectionLeft ||
         this == Key.DirectionRight
+
+
+@Composable
+private fun AiSubtitleTranslationSettingsContent(initialFocusRequester: FocusRequester) {
+    val context = LocalContext.current
+    val settings = remember(context) { EmbeddedSubtitleTranslationSettings(context) }
+    var endpoint by remember { mutableStateOf(EmbeddedSubtitleTranslationSettings.DEFAULT_ENDPOINT) }
+    var token by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("Token não configurado") }
+
+    LaunchedEffect(settings) {
+        val config = settings.read()
+        endpoint = config.endpoint
+        token = config.token
+        status = if (config.isConfigured) "Serviço configurado neste dispositivo" else "Configure seu token de acesso"
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        SettingsDetailHeader(
+            title = "Tradução de legendas por IA",
+            subtitle = "Traduza legendas de texto incorporadas ao vídeo sem recarregar a reprodução"
+        )
+        OutlinedTextField(
+            value = endpoint,
+            onValueChange = { endpoint = it },
+            label = { Text("URL do Nan Add-ons") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().focusRequester(initialFocusRequester)
+        )
+        OutlinedTextField(
+            value = token,
+            onValueChange = { token = it },
+            label = { Text("Token de acesso") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Button(onClick = {
+            runCatching { settings.save(endpoint, token) }
+                .onSuccess { status = "Configuração salva com criptografia local" }
+                .onFailure { status = it.message ?: "Não foi possível salvar" }
+        }) { Text("Salvar configuração") }
+        Text(status)
+        Text("O token fica criptografado no dispositivo. A chave do Gemini permanece somente no servidor.")
+    }
+}
