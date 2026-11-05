@@ -2,14 +2,15 @@ package com.nuvio.tv.core.subtitles
 
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.isActive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resumeWithException
 
 /**
  * Client for the Nan Add-ons timed-cue translation endpoint.
@@ -38,7 +39,7 @@ class EmbeddedSubtitleTranslationClient(
         token: String,
         cues: List<Cue>,
         targetLanguage: String = "Português do Brasil",
-    ): Result = withContext(Dispatchers.IO) {
+    ): Result {
         val normalizedEndpoint = endpoint.trim().trimEnd('/')
         require(normalizedEndpoint.startsWith("https://", ignoreCase = true)) {
             "O endereço do serviço precisa usar HTTPS."
@@ -61,42 +62,51 @@ class EmbeddedSubtitleTranslationClient(
             .post(body)
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
-            val responseText = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                val reason = when (response.code) {
-                    401, 403 -> "Token do Nan Add-ons inválido ou sem permissão."
-                    429 -> "Limite de traduções atingido. Tente novamente em instantes."
-                    in 500..599 -> "O serviço de tradução está temporariamente indisponível."
-                    else -> "Falha ao traduzir legendas (HTTP ${response.code})."
+        return suspendCancellableCoroutine { continuation ->
+            val call = httpClient.newCall(request)
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : okhttp3.Callback {
+                override fun onFailure(call: okhttp3.Call, error: IOException) {
+                    if (continuation.isActive) continuation.resumeWithException(error)
                 }
-                throw IOException(reason)
-            }
 
-            val parsed = gson.fromJson(responseText, ResponsePayload::class.java)
-                ?: throw IOException("Resposta vazia do serviço de tradução.")
-            if (parsed.cues.size != cues.size || parsed.translatedCount != cues.size) {
-                throw IOException("O serviço retornou uma quantidade diferente de falas.")
-            }
-
-            parsed.cues.forEachIndexed { index, translated ->
-                val original = cues[index]
-                if (
-                    translated.startTimeMs != original.startTimeMs ||
-                    translated.endTimeMs != original.endTimeMs ||
-                    translated.text.isBlank()
-                ) {
-                    throw IOException("A resposta alterou a sincronização ou contém uma fala vazia.")
+                override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
+                    try {
+                        val result = response.use {
+                            val responseText = it.body?.string().orEmpty()
+                            if (!it.isSuccessful) {
+                                val reason = when (it.code) {
+                                    401, 403 -> "Token do Nan Add-ons inválido ou sem permissão."
+                                    429 -> "Limite de traduções atingido. Tente novamente em instantes."
+                                    in 500..599 -> "O serviço de tradução está temporariamente indisponível."
+                                    else -> "Falha ao traduzir legendas (HTTP ${it.code})."
+                                }
+                                throw IOException(reason)
+                            }
+                            val parsed = gson.fromJson(responseText, ResponsePayload::class.java)
+                                ?: throw IOException("Resposta vazia do serviço de tradução.")
+                            if (parsed.cues.size != cues.size || parsed.translatedCount != cues.size) {
+                                throw IOException("O serviço retornou uma quantidade diferente de falas.")
+                            }
+                            parsed.cues.forEachIndexed { index, translated ->
+                                val original = cues[index]
+                                if (
+                                    translated.startTimeMs != original.startTimeMs ||
+                                    translated.endTimeMs != original.endTimeMs ||
+                                    translated.text.isBlank()
+                                ) {
+                                    throw IOException("A resposta alterou a sincronização ou contém uma fala vazia.")
+                                }
+                            }
+                            Result(parsed.cues, parsed.cached, parsed.translatedCount)
+                        }
+                        if (continuation.isActive) continuation.resume(result)
+                    } catch (error: Exception) {
+                        if (continuation.isActive) continuation.resumeWithException(error)
+                    }
                 }
-            }
-
-            Result(
-                cues = parsed.cues,
-                cached = parsed.cached,
-                translatedCount = parsed.translatedCount,
-            )
+            })
         }
-    }
 
     private data class RequestPayload(
         val cues: List<Cue>,
