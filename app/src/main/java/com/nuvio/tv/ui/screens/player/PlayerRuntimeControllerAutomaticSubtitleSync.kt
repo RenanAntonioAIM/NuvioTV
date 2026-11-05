@@ -702,6 +702,10 @@ internal fun PlayerRuntimeController.translateEmbeddedEnglishSubtitle(): Boolean
     val translatedKey = "ai-embedded:$sourceAtStart"
     activeSidecarGeneration = generation
     activeSidecarSubtitleKey = translatedKey
+    postToSubtitleView { view ->
+        view.setTag(R.id.player_view_sidecar_generation_tag, translatedKey)
+        view.setCues(emptyList())
+    }
     sidecarTimedCues = emptyList()
     lastSidecarCueSignature = null
     player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()

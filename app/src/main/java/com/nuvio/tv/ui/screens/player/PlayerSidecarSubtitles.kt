@@ -287,7 +287,7 @@ private fun PlayerRuntimeController.showSidecarCues(view: SubtitleView, cues: Li
     subtitleCueTracker.update(cues)
 }
 
-private fun PlayerRuntimeController.postToSubtitleView(block: (SubtitleView) -> Unit) {
+internal fun PlayerRuntimeController.postToSubtitleView(block: (SubtitleView) -> Unit) {
     val view = exoSubtitleViewRef?.get() ?: return
     if (Looper.myLooper() == Looper.getMainLooper()) {
         block(view)
