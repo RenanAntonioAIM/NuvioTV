@@ -60,9 +60,12 @@ internal fun PlayerRuntimeController.autoSyncExtractorsFactory(
     headers: Map<String, String>,
 ): ExtractorsFactory {
     AutoSyncPreferences.ensureLoaded(context)
-    if (!AutoSyncPreferences.isEnabled(context)) return delegate
+    // Embedded cue capture also powers the independent AI translation action. Keep the
+    // lightweight text observer active even when automatic subtitle synchronization is off.
     val factory = AutoSyncExtractorsFactory(delegate = delegate, sourceKey = url)
-    prefetchAutoSyncIndex(url, headers)
+    if (AutoSyncPreferences.isEnabled(context)) {
+        prefetchAutoSyncIndex(url, headers)
+    }
     return factory
 }
 
