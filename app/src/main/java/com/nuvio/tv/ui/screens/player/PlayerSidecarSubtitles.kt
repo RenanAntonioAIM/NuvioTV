@@ -80,7 +80,10 @@ private fun PlayerRuntimeController.shouldKeepAssOnLibassMediaPath(): Boolean {
 }
 
 internal fun PlayerRuntimeController.isSidecarAddonSubtitleActive(): Boolean {
-    return activeSidecarSubtitleKey != null && _uiState.value.selectedAddonSubtitle != null
+    return activeSidecarSubtitleKey != null && (
+        _uiState.value.selectedAddonSubtitle != null ||
+            activeSidecarSubtitleKey?.startsWith("ai-embedded:") == true
+        )
 }
 
 internal fun PlayerRuntimeController.bindExoSubtitleView(subtitleView: SubtitleView?) {
