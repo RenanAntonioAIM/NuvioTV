@@ -855,6 +855,7 @@ private fun SettingsDetailPane(
     integrationTmdbFocusRequester: FocusRequester,
     integrationMdbListFocusRequester: FocusRequester,
     integrationAnimeSkipFocusRequester: FocusRequester,
+    integrationAiSubtitlesFocusRequester: FocusRequester,
     onNavigateToManageProfiles: () -> Unit,
     onNavigateToAddons: () -> Unit,
     onNavigateToPlugins: () -> Unit,
@@ -1075,6 +1076,7 @@ private fun IntegrationSettingsContent(
     tmdbFocusRequester: FocusRequester,
     mdbListFocusRequester: FocusRequester,
     animeSkipFocusRequester: FocusRequester,
+    aiSubtitlesFocusRequester: FocusRequester,
     autoFocusEnabled: Boolean
 ) {
     BackHandler(enabled = selectedSection != IntegrationSettingsSection.Hub) {
@@ -1173,7 +1175,7 @@ private fun IntegrationSettingsContent(
                                     subtitle = "Nan Add-ons · Português do Brasil",
                                     leadingIcon = Icons.Default.AutoAwesome,
                                     onClick = { onSelectSection(IntegrationSettingsSection.AiSubtitles) },
-                                    modifier = if (hubReturnSection == IntegrationSettingsSection.AiSubtitles) Modifier.focusRequester(aiSubtitlesFocusRequester) else Modifier
+                                    modifier = if (hubEntryTargetSection == IntegrationSettingsSection.AiSubtitles) Modifier.focusRequester(hubEntryFocusRequester) else Modifier
                                 )
                             }
                             item(key = "integration_hub_animeskip") {
