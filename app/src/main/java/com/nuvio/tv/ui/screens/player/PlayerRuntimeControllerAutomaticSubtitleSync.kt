@@ -686,6 +686,10 @@ internal fun PlayerRuntimeController.translateEmbeddedEnglishSubtitle(): Boolean
         return false
     }
     val player = _exoPlayer ?: return false
+    if (_uiState.value.selectedAddonSubtitle != null) {
+        showAutoSyncToast("Selecione primeiro uma legenda incorporada ao vídeo.")
+        return false
+    }
     val sourceAtStart = currentStreamUrl
     val settings = EmbeddedSubtitleTranslationSettings(context).read()
     if (!settings.isConfigured) {
@@ -693,7 +697,10 @@ internal fun PlayerRuntimeController.translateEmbeddedEnglishSubtitle(): Boolean
         return false
     }
     val selected = EmbeddedSubtitleCueStore.candidateTracks(sourceAtStart, "en")
-        .filter { it.language?.startsWith("en", ignoreCase = true) == true }
+        .filter { track ->
+            val language = track.language?.trim().orEmpty()
+            language.equals("eng", ignoreCase = true) || language.startsWith("en", ignoreCase = true)
+        }
         .maxByOrNull { it.cues.size }
     if (selected == null || selected.cues.size < MIN_TRANSLATION_CUES) {
         showAutoSyncToast("Ainda não há falas suficientes capturadas. Reproduza mais um pouco e tente novamente.")
