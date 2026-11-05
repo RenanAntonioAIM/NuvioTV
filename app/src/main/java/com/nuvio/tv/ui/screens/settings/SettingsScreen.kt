@@ -1087,6 +1087,7 @@ private fun IntegrationSettingsContent(
         IntegrationSettingsSection.Tmdb -> tmdbFocusRequester
         IntegrationSettingsSection.MdbList -> mdbListFocusRequester
         IntegrationSettingsSection.AnimeSkip -> animeSkipFocusRequester
+        IntegrationSettingsSection.AiSubtitles -> aiSubtitlesFocusRequester
     }
     val hubEntryTargetSection = hubReturnSection.takeIf {
         it != IntegrationSettingsSection.Hub
@@ -1100,6 +1101,7 @@ private fun IntegrationSettingsContent(
             IntegrationSettingsSection.Tmdb -> tmdbFocusRequester
             IntegrationSettingsSection.MdbList -> mdbListFocusRequester
             IntegrationSettingsSection.AnimeSkip -> animeSkipFocusRequester
+            IntegrationSettingsSection.AiSubtitles -> aiSubtitlesFocusRequester
         }
         runCatching { requester.requestFocus() }
     }
@@ -1165,7 +1167,16 @@ private fun IntegrationSettingsContent(
                                     }
                                 )
                             }
-                            item(key = "integration_hub_ai_subtitles") {\n                                SettingsActionRow(\n                                    title = "Tradução de legendas por IA",\n                                    subtitle = "Nan Add-ons · Português do Brasil",\n                                    leadingIcon = Icons.Default.AutoAwesome,\n                                    onClick = { onSelectSection(IntegrationSettingsSection.AiSubtitles) },\n                                    modifier = if (hubReturnSection == IntegrationSettingsSection.AiSubtitles) Modifier.focusRequester(aiSubtitlesFocusRequester) else Modifier\n                                )\n                            }\n                            item(key = "integration_hub_animeskip") {
+                            item(key = "integration_hub_ai_subtitles") {
+                                SettingsActionRow(
+                                    title = "Tradução de legendas por IA",
+                                    subtitle = "Nan Add-ons · Português do Brasil",
+                                    leadingIcon = Icons.Default.AutoAwesome,
+                                    onClick = { onSelectSection(IntegrationSettingsSection.AiSubtitles) },
+                                    modifier = if (hubReturnSection == IntegrationSettingsSection.AiSubtitles) Modifier.focusRequester(aiSubtitlesFocusRequester) else Modifier
+                                )
+                            }
+                            item(key = "integration_hub_animeskip") {
                                 SettingsActionRow(
                                     title = "Anime-Skip",
                                     subtitle = stringResource(R.string.settings_animeskip_subtitle),
@@ -1208,6 +1219,9 @@ private fun IntegrationSettingsContent(
                 initialFocusRequester = animeSkipFocusRequester
             )
         }
+        IntegrationSettingsSection.AiSubtitles -> AiSubtitleTranslationSettingsContent(
+            initialFocusRequester = aiSubtitlesFocusRequester
+        )
     }
 }
 
